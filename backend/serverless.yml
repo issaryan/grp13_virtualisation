@@ -1,0 +1,300 @@
+service: quiz-api-serverless
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: dev
+  region: us-east-1
+  endpointType: REGIONAL
+  environment:
+    APIGW_ENDPOINT: http://localhost:4566
+    DYNAMO_ENDPOINT: http://localhost:4566
+    SNS_ENDPOINT: http://localhost:4566
+    NODE_ENV: development
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+        - execute-api:*
+        - sns:*
+      Resource: "*"
+
+plugins:
+  - serverless-localstack
+
+custom:
+  localstack:
+    stages: [dev]
+    endpointFile: localstack_endpoints.json
+    autostart: true
+    lambda:
+      mountCode: true
+    dynamodb:
+      start:
+        migrate: true
+
+functions:
+  createQuiz:
+    handler: lambdas/quiz/handlers.createQuizHandler
+    events:
+      - http:
+          path: /api/quizzes
+          method: post
+          cors: true
+
+  getQuiz:
+    handler: lambdas/quiz/handlers.getQuizHandler
+    events:
+      - http:
+          path: /api/quizzes/{id}
+          method: get
+          cors: true
+
+  publishQuiz:
+    handler: lambdas/quiz/handlers.publishQuizHandler
+    events:
+      - http:
+          path: /api/quizzes/{id}/publish
+          method: patch
+          cors: true
+
+  getQuizStats:
+    handler: lambdas/quiz/handlers.getStatsHandler
+    events:
+      - http:
+          path: /api/quizzes/{id}/stats
+          method: get
+          cors: true
+
+  createSession:
+    handler: lambdas/create-session.handler
+    events:
+      - http:
+          path: /api/sessions
+          method: post
+          cors: true
+
+  getSession:
+    handler: lambdas/get-session.handler
+    events:
+      - http:
+          path: /api/sessions/{id}
+          method: get
+          cors: true
+
+  publishResults:
+    handler: lambdas/publish-results.handler
+    events:
+      - http:
+          path: /api/sessions/{id}/publish
+          method: post
+          cors: true
+
+  login:
+    handler: lambdas/auth/handlers.loginHandler
+    events:
+      - http:
+          path: /api/auth/login
+          method: post
+          cors: true
+
+  register:
+    handler: lambdas/auth/handlers.registerHandler
+    events:
+      - http:
+          path: /api/auth/register
+          method: post
+          cors: true
+
+  logout:
+    handler: lambdas/auth/handlers.logoutHandler
+    events:
+      - http:
+          path: /api/auth/logout
+          method: post
+          cors: true
+
+  websocketHandler:
+    handler: lambdas/websocket-handler.handler
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $disconnect
+      - websocket:
+          route: joinSession
+      - websocket:
+          route: submitAnswer
+      - websocket:
+          route: endQuiz
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Users
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    SessionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Sessions
+        AttributeDefinitions:
+          - AttributeName: sessionId
+            AttributeType: S
+          - AttributeName: code
+            AttributeType: S
+          - AttributeName: isActive
+            AttributeType: S
+        KeySchema:
+          - AttributeName: sessionId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CodeIndex
+            KeySchema:
+              - AttributeName: code
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+          - IndexName: ActiveSessionsIndex
+            KeySchema:
+              - AttributeName: isActive
+                KeyType: HASH
+              - AttributeName: sessionId
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    QuizzesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Quizzes
+        AttributeDefinitions:
+          - AttributeName: quizId
+            AttributeType: S
+          - AttributeName: teacherId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: quizId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: TeacherIndex
+            KeySchema:
+              - AttributeName: teacherId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    ResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Results
+        AttributeDefinitions:
+          - AttributeName: resultId
+            AttributeType: S
+          - AttributeName: sessionId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: resultId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: SessionResultsIndex
+            KeySchema:
+              - AttributeName: sessionId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+          - IndexName: UserResultsIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    ConnectionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Connections
+        AttributeDefinitions:
+          - AttributeName: connectionId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: connectionId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserConnectionsIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    QuizResultsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: QuizResults
+        DisplayName: Quiz Results Notification Topic
+
+  Outputs:
+    WebSocketEndpoint:
+      Value:
+        Fn::Join:
+          - ""
+          - - "ws://"
+            - { "Fn::GetAtt": ["WebsocketsApi", "ApiId"] }
+            - ".execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}"

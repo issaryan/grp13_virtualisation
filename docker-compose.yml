@@ -1,13 +1,42 @@
-version: '3'
+version: '3.8'
 
 services:
-  web:
-    build: .
+  localstack:
+    image: localstack/localstack
     ports:
-      - "3000:3000"
-      - "4200:4200"
-    volumes:
-      - .:/app
-      - /app/node_modules
+      - "4566:4566"
+      - "4510-4520:4510-4520"
     environment:
-      - NODE_ENV=development
+      - SERVICES=lambda,apigateway,dynamodb,sns
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOSTNAME_EXTERNAL=localstack
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infra:/docker-entrypoint-initaws.d
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4566/_localstack/health" ]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 40s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:4200"
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    environment:
+      - AWS_ENDPOINT=http://localstack:4566
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+networks:
+  default:
+    name: quiz_network
+    driver: bridge
