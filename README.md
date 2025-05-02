@@ -15,9 +15,9 @@ Une plateforme de quiz interactive exploitant les services AWS simulés par **Lo
 ### Services Principaux
 | **Service**       | **Rôle**                                  | **Implémentation**              |
 |--------------------|-------------------------------------------|----------------------------------|
-| **DynamoDB**       | Stockage des questions/résultats          | Tables `QuizQuestions`, `Scores` |
+| **DynamoDB**       | Stockage des questions/résultats          | Tables                           |
 | **API Gateway**    | Gestion des connexions WebSocket          | Routeur des événements temps réel|
-| **Lambda**         | Logique métier des opérations             | Fonctions Node.js/Python         |
+| **Lambda**         | Logique métier des opérations             | Fonctions Node.js                |
 | **SNS**            | Notifications des événements de session   | Topics dédiés                    |
 
 ### Workflow Typique
